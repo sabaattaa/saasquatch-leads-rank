@@ -43,6 +43,7 @@ export default function Dashboard() {
   const [busy, setBusy] = useState(false);
   const [creditBudget, setCreditBudget] = useState(5);
   const [plan, setPlan] = useState<EnrichPlan | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [filters, setFilters] = useState<Filters>({
     q: "",
     minScore: 0,
@@ -116,34 +117,36 @@ export default function Dashboard() {
 
   async function resetDemo() {
     setBusy(true);
+    setNotice(null);
     try {
       const res = await fetch("/api/leads/reset", { method: "POST" });
       if (!res.ok) throw new Error(`Reset failed (${res.status})`);
       const data = await res.json();
       setSelectedId(null);
+      const nextFilters: Filters = {
+        q: "",
+        minScore: 0,
+        industry: "",
+        status: "all",
+        hideDuplicates: true,
+      };
       // Prefer payload from the same request (avoids serverless instance mismatch)
       if (Array.isArray(data.leads) && data.stats) {
         setLeads(data.leads);
         setStats(data.stats);
-        setFilters({
-          q: "",
-          minScore: 0,
-          industry: "",
-          status: "all",
-          hideDuplicates: true,
-        });
+        setFilters(nextFilters);
       } else {
-        await load({
-          q: "",
-          minScore: 0,
-          industry: "",
-          status: "all",
-          hideDuplicates: true,
-        });
+        await load(nextFilters);
+        setFilters(nextFilters);
       }
+      await loadPlan(creditBudget);
+      setNotice(
+        "Demo data restored — seed leads are back (this does not clear the list to empty)."
+      );
+      window.setTimeout(() => setNotice(null), 4000);
     } catch (err) {
       console.error(err);
-      alert("Reset failed on the server. Try refreshing the page.");
+      setNotice("Reset failed on the server. Try refreshing the page.");
     } finally {
       setBusy(false);
     }
@@ -201,11 +204,14 @@ export default function Dashboard() {
             className={styles.btnGhost}
             onClick={resetDemo}
             disabled={busy}
+            title="Restore the original seed dataset (not an empty list)"
           >
-            Reset demo data
+            {busy ? "Resetting…" : "Reset demo data"}
           </button>
         </div>
       </header>
+
+      {notice && <p className={styles.notice}>{notice}</p>}
 
       <section className={styles.stats}>
         <div className={styles.stat}>

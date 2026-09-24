@@ -42,6 +42,17 @@
   flex-wrap: wrap;
 }
 
+.notice {
+  margin: -8px 0 16px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line));
+  background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
 .btnPrimary,
 .btnGhost {
   border-radius: 8px;
