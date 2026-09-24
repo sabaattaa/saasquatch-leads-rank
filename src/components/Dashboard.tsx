@@ -116,10 +116,37 @@ export default function Dashboard() {
 
   async function resetDemo() {
     setBusy(true);
-    await fetch("/api/leads/reset", { method: "POST" });
-    setSelectedId(null);
-    await load(filters);
-    setBusy(false);
+    try {
+      const res = await fetch("/api/leads/reset", { method: "POST" });
+      if (!res.ok) throw new Error(`Reset failed (${res.status})`);
+      const data = await res.json();
+      setSelectedId(null);
+      // Prefer payload from the same request (avoids serverless instance mismatch)
+      if (Array.isArray(data.leads) && data.stats) {
+        setLeads(data.leads);
+        setStats(data.stats);
+        setFilters({
+          q: "",
+          minScore: 0,
+          industry: "",
+          status: "all",
+          hideDuplicates: true,
+        });
+      } else {
+        await load({
+          q: "",
+          minScore: 0,
+          industry: "",
+          status: "all",
+          hideDuplicates: true,
+        });
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Reset failed on the server. Try refreshing the page.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function applyPlan() {

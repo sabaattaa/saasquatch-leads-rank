@@ -6,28 +6,69 @@ import { scoreLead } from "./score";
 import { validateLead } from "./validate";
 import { dedupeLeads } from "./dedupe";
 
-const DATA_DIR =
+const ON_SERVERLESS = Boolean(
   process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME
-    ? path.join("/tmp", "leadrank-data")
-    : path.join(process.cwd(), "data");
+);
+
+const DATA_DIR = ON_SERVERLESS
+  ? path.join("/tmp", "leadrank-data")
+  : path.join(process.cwd(), "data");
 const DATA_FILE = path.join(DATA_DIR, "leads.json");
 
-function ensureStore(): Lead[] {
-  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-  if (!fs.existsSync(DATA_FILE)) {
-    const seed = createSeedLeads();
-    // run dedupe once on first boot so the demo shows value immediately
-    const withDups = dedupeLeads(seed);
-    fs.writeFileSync(DATA_FILE, JSON.stringify(withDups, null, 2), "utf8");
-    return withDups;
+type StoreBag = { leads: Lead[] | null };
+
+const globalStore = globalThis as typeof globalThis & {
+  __leadrankStore?: StoreBag;
+};
+
+function bag(): StoreBag {
+  if (!globalStore.__leadrankStore) {
+    globalStore.__leadrankStore = { leads: null };
   }
-  const raw = fs.readFileSync(DATA_FILE, "utf8");
-  return JSON.parse(raw) as Lead[];
+  return globalStore.__leadrankStore;
+}
+
+function makeSeed(): Lead[] {
+  return dedupeLeads(createSeedLeads());
+}
+
+function readDisk(): Lead[] | null {
+  try {
+    if (!fs.existsSync(DATA_FILE)) return null;
+    const raw = fs.readFileSync(DATA_FILE, "utf8");
+    return JSON.parse(raw) as Lead[];
+  } catch {
+    return null;
+  }
+}
+
+function writeDisk(leads: Lead[]) {
+  try {
+    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.writeFileSync(DATA_FILE, JSON.stringify(leads, null, 2), "utf8");
+  } catch {
+    // Vercel/local FS can fail; memory store remains source of truth.
+  }
+}
+
+function ensureStore(): Lead[] {
+  const s = bag();
+  if (s.leads) return s.leads;
+
+  const fromDisk = readDisk();
+  if (fromDisk?.length) {
+    s.leads = fromDisk;
+    return s.leads;
+  }
+
+  s.leads = makeSeed();
+  writeDisk(s.leads);
+  return s.leads;
 }
 
 function save(leads: Lead[]) {
-  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-  fs.writeFileSync(DATA_FILE, JSON.stringify(leads, null, 2), "utf8");
+  bag().leads = leads;
+  writeDisk(leads);
 }
 
 export function getAllLeads(): Lead[] {
@@ -77,7 +118,7 @@ export function updateLead(
   id: string,
   patch: Partial<Pick<Lead, "status" | "notes" | "email" | "phone">>
 ): Lead | null {
-  const leads = getAllLeads();
+  const leads = [...getAllLeads()];
   const idx = leads.findIndex((l) => l.id === id);
   if (idx < 0) return null;
 
@@ -115,7 +156,7 @@ export function queueLeads(ids: string[]): Lead[] {
 }
 
 export function resetSeed(): Lead[] {
-  const seed = dedupeLeads(createSeedLeads());
+  const seed = makeSeed();
   save(seed);
   return seed;
 }
