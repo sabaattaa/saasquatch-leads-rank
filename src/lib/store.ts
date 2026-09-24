@@ -6,7 +6,10 @@ import { scoreLead } from "./score";
 import { validateLead } from "./validate";
 import { dedupeLeads } from "./dedupe";
 
-const DATA_DIR = path.join(process.cwd(), "data");
+const DATA_DIR =
+  process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME
+    ? path.join("/tmp", "leadrank-data")
+    : path.join(process.cwd(), "data");
 const DATA_FILE = path.join(DATA_DIR, "leads.json");
 
 function ensureStore(): Lead[] {
