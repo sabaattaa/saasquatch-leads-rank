@@ -14,9 +14,6 @@ LeadRank sits in that gap.
 2. **Validation + dedupe**  
    Flags bad/missing/disposable emails and domain mismatches. Dedupes on email and company+contact so you don't pay twice for the same person scraped from two sources.
 
-3. **Smart enrich planner (credit budget)**  
-   You set how many enrichment credits you have this week. The planner auto-picks the best unique, high-score, clean-email leads and one-click queues them — while showing how many low-score / bad-email / duplicate rows it skipped.
-
 Demo heuristic: duplicates + low-score leads ≈ credits you'd skip.
 
 ## Why this (business value)
