@@ -1,36 +1,84 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# LeadRank
 
-## Getting Started
+Caprae Capital handbook task — focused improvement on top of [SaaSquatch Leads](https://www.saasquatchleads.com/), not a full rebuild.
 
-First, run the development server:
+SaaSquatch already scrapes and enriches leads. The expensive part is enrichment credits. After looking at the product, the gap I cared about was: **which leads are actually worth enriching, and which ones are junk / duplicates?**
+
+LeadRank sits in that gap.
+
+## What I built (three improvements)
+
+1. **Lead quality score + enrichment priority queue**  
+   Each lead gets a 0–100 score from title seniority, ICP/industry fit, company size, revenue signal, and profile completeness. High scores (≥70) go to the front of the enrich queue.
+
+2. **Validation + dedupe**  
+   Flags bad/missing/disposable emails and domain mismatches. Dedupes on email and company+contact so you don't pay twice for the same person scraped from two sources.
+
+3. **Smart enrich planner (credit budget)**  
+   You set how many enrichment credits you have this week. The planner auto-picks the best unique, high-score, clean-email leads and one-click queues them — while showing how many low-score / bad-email / duplicate rows it skipped.
+
+Demo heuristic: duplicates + low-score leads ≈ credits you'd skip.
+
+## Why this (business value)
+
+- Credits are the monetization lever on SaaSquatch. Wasting them on interns, duplicate rows, or disposable emails is real money.
+- Salespeople don't need more scrape volume — they need a ranked shortlist.
+- Fits Caprae's "1–2 high-impact improvements in ~5 hours" constraint.
+
+## Quick start
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+First boot writes seed data to `data/leads.json` (already includes intentional duplicates so dedupe is obvious).
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Stack
 
-## Learn More
+| Layer | Choice |
+| --- | --- |
+| Frontend | Next.js 14 (App Router) + React + CSS Modules |
+| Backend | Next.js Route Handlers |
+| Storage | JSON file store under `/data` (zero setup for reviewers) |
+| Hosting target | Vercel (or any Node host) |
 
-To learn more about Next.js, take a look at the following resources:
+No external lead APIs in the demo — scoring/validation run locally on seeded + imported-style sample data so the review doesn't depend on paid keys.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Project layout
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```
+src/app/api/leads/     REST endpoints
+src/components/        Dashboard UI
+src/lib/score.ts       Scoring
+src/lib/validate.ts    Email/domain checks
+src/lib/dedupe.ts      Duplicate detection
+src/lib/planner.ts      Credit-budget enrich recommendations
+src/lib/store.ts       Persistence + filters + CSV export
+src/lib/seed.ts        Demo dataset
+```
 
-## Deploy on Vercel
+More detail: [TECHNICAL.md](./TECHNICAL.md)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## API (short)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `GET /api/leads` — list + stats (`q`, `minScore`, `industry`, `status`, `hideDuplicates`)
+- `PATCH /api/leads/:id` — update status (`queued` / `enriched` / `skipped`)
+- `POST /api/leads/dedupe` — re-run dedupe
+- `POST /api/leads/reset` — restore seed data
+- `GET /api/leads/export` — CSV of current filtered view
+- `GET /api/leads/plan?budget=5` — smart enrich recommendations
+- `POST /api/leads/plan` — `{ budget, apply: true }` queues recommended leads
+
+## What I'd do next (out of scope)
+
+- Wire real enrichment provider webhooks
+- Fuzzy name matching (Levenshtein) for near-duplicates
+- Team ICP presets per customer
+- Postgres instead of JSON if this left the demo stage
+
+## Video walkthrough notes
+
+Cover: problem (credit waste) → score model → dedupe demo → smart enrich planner (budget) → why not rebuild whole product.
